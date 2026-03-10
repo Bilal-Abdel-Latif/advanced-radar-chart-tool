@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset="UTF-8">
+<title>Custom Radar Chart Tool</title>
+
+<meta http-equiv="X-Frame-Options" content="deny">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+
+body{
+font-family:Arial;
+background:#f2f5fb;
+padding:40px;
+}
+
+table{
+border-collapse:collapse;
+background:white;
+margin-bottom:20px;
+}
+
+th,td{
+border:1px solid #ccc;
+padding:8px;
+text-align:center;
+min-width:100px;
+}
+
+input[type="number"], input[type="text"]{
+width:80px;
+text-align:center;
+}
+
+input[type="color"]{
+width:40px;
+height:25px;
+border:none;
+cursor:pointer;
+}
+
+button{
+padding:8px 14px;
+margin:5px;
+background:#2c6bed;
+color:white;
+border:none;
+border-radius:5px;
+cursor:pointer;
+}
+
+button:hover{
+background:#1b4bc2;
+}
+
+.removeBtn{
+background:#e53935;
+padding:4px 8px;
+margin-top:4px;
+font-size:12px;
+}
+
+.removeBtn:hover{
+background:#b71c1c;
+}
+
+#chartBox{
+width:700px;
+background:white;
+padding:20px;
+border-radius:10px;
+box-shadow:0 3px 12px rgba(0,0,0,0.15);
+}
+
+#axisLegend{
+margin-top:20px;
+display:flex;
+gap:25px;
+flex-wrap:wrap;
+font-size:14px;
+}
+
+.axisItem{
+background:#f7f7f7;
+padding:6px 10px;
+border-radius:6px;
+border:1px solid #ddd;
+}
+
+footer{
+margin-top:40px;
+text-align:center;
+color:#666;
+font-size:14px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h2>Radar Chart Comparison Tool</h2>
+
+<label>Chart Title (Optional)</label>
+<input type="text" id="chartTitle" placeholder="Enter title">
+
+<br><br>
+
+<table id="dataTable">
+
+<thead>
+<tr id="headerRow">
+<th>Criterion</th>
+<th>Min</th>
+<th>Max</th>
+
+<th>
+<input value="Item 1"><br>
+<input type="color" value="#4caf50">
+</th>
+
+<th>
+<input value="Item 2"><br>
+<input type="color" value="#2196f3">
+</th>
+
+<th>
+<input value="Item 3"><br>
+<input type="color" value="#ff9800">
+</th>
+
+</tr>
+</thead>
+
+<tbody>
+
+<tr>
+<td><input value="Criterion 1"></td>
+<td><input type="number"></td>
+<td><input type="number"></td>
+<td><input type="number"></td>
+<td><input type="number"></td>
+<td><input type="number"></td>
+</tr>
+
+<tr>
+<td><input value="Criterion 2"></td>
+<td><input type="number"></td>
+<td><input type="number"></td>
+<td><input type="number"></td>
+<td><input type="number"></td>
+<td><input type="number"></td>
+</tr>
+
+<tr>
+<td><input value="Criterion 3"></td>
+<td><input type="number"></td>
+<td><input type="number"></td>
+<td><input type="number"></td>
+<td><input type="number"></td>
+<td><input type="number"></td>
+</tr>
+
+</tbody>
+
+</table>
+
+<button onclick="addItem()">Add Item</button>
+<button onclick="addCriterion()">Add Criterion</button>
+<button onclick="generateChart()">Generate Chart</button>
+<button onclick="exportPNG()">Export PNG</button>
+<button onclick="exportPDF()">Export PDF</button>
+
+<div id="chartBox">
+<canvas id="radarChart"></canvas>
+<div id="axisLegend"></div>
+</div>
+
+<footer>
+Made by : <b>Bilal Abdel Latif</b> ©
+</footer>
+
+<script>
+
+/* ===== PROTECTION LAYER ===== */
+
+document.addEventListener("contextmenu",e=>e.preventDefault());
+document.addEventListener("selectstart",e=>e.preventDefault());
+document.addEventListener("copy",e=>e.preventDefault());
+document.addEventListener("dragstart",e=>e.preventDefault());
+
+document.onkeydown=function(e){
+
+if(e.keyCode===123) return false;
+
+if(e.ctrlKey && e.shiftKey && e.keyCode===73) return false;
+
+if(e.ctrlKey && e.shiftKey && e.keyCode===74) return false;
+
+if(e.ctrlKey && e.shiftKey && e.keyCode===67) return false;
+
+if(e.ctrlKey && e.keyCode===85) return false;
+
+};
+
+/* DevTools detection */
+
+setInterval(function(){
+
+if(
+window.outerWidth-window.innerWidth>160 ||
+window.outerHeight-window.innerHeight>160
+){
+document.body.innerHTML="<h1 style='text-align:center;margin-top:200px'>Access Denied</h1>";
+}
+
+},1000);
+
+/* Disable console */
+
+["log","warn","error","debug","info"].forEach(function(m){
+console[m]=function(){};
+});
+
+/* Prevent iframe */
+
+if(window.top!==window.self){
+window.top.location=window.self.location;
+}
+
+/* ===== TOOL ===== */
+
+let chart
+
+function addItem(){
+
+let header=document.getElementById("headerRow")
+let table=document.getElementById("dataTable")
+let index=header.cells.length-2
+
+let th=document.createElement("th")
+
+th.innerHTML=`
+<input value="Item ${index}"><br>
+<input type="color" value="#${Math.floor(Math.random()*16777215).toString(16)}"><br>
+<button class="removeBtn" onclick="removeItem(${header.cells.length})">Remove</button>
+`
+
+header.appendChild(th)
+
+for(let i=1;i<table.rows.length;i++){
+let cell=table.rows[i].insertCell()
+cell.innerHTML=`<input type="number">`
+}
+
+}
+
+function removeItem(index){
+
+let table=document.getElementById("dataTable")
+let header=document.getElementById("headerRow")
+
+header.deleteCell(index)
+
+for(let i=1;i<table.rows.length;i++){
+table.rows[i].deleteCell(index)
+}
+
+}
+
+function addCriterion(){
+
+let table=document.getElementById("dataTable")
+let cols=document.getElementById("headerRow").cells.length
+
+let row=table.insertRow()
+
+row.insertCell(0).innerHTML=`
+<input value="Criterion">
+<br>
+<button class="removeBtn" onclick="removeCriterion(this)">Remove</button>
+`
+
+row.insertCell(1).innerHTML=`<input type="number">`
+row.insertCell(2).innerHTML=`<input type="number">`
+
+for(let i=3;i<cols;i++){
+row.insertCell().innerHTML=`<input type="number">`
+}
+
+}
+
+function removeCriterion(btn){
+
+let row=btn.closest("tr")
+row.remove()
+
+}
+
+const valueLabelPlugin={
+id:'valueLabelPlugin',
+
+afterDraw(chart){
+
+const {ctx}=chart
+
+chart.data.datasets.forEach((dataset,i)=>{
+
+const meta=chart.getDatasetMeta(i)
+if(meta.hidden) return
+
+meta.data.forEach((point,index)=>{
+
+let row=document.querySelectorAll("#dataTable tbody tr")[index]
+
+let min=Number(row.cells[1].querySelector("input").value)
+let max=Number(row.cells[2].querySelector("input").value)
+
+let realValue=dataset.data[index]*(max-min)+min
+let text=realValue.toFixed(2)
+
+ctx.save()
+
+ctx.font="12px Arial"
+ctx.textAlign="center"
+
+ctx.fillStyle=dataset.borderColor
+ctx.strokeStyle="white"
+ctx.lineWidth=4
+
+ctx.strokeText(text,point.x,point.y-6)
+ctx.fillText(text,point.x,point.y-6)
+
+ctx.restore()
+
+})
+
+})
+
+}
+}
+
+const perAxisScalePlugin={
+id:"perAxisScalePlugin",
+afterDraw(chart){
+
+const {ctx}=chart
+const scale=chart.scales.r
+const rows=document.querySelectorAll("#dataTable tbody tr")
+
+rows.forEach((row,index)=>{
+
+let max=Number(row.cells[2].querySelector("input").value)||0
+
+let p=scale.getPointPositionForValue(index,1)
+
+ctx.save()
+ctx.font="11px Arial"
+ctx.textAlign="center"
+
+ctx.strokeStyle="white"
+ctx.lineWidth=3
+
+let text=max.toFixed(1)
+
+ctx.strokeText(text,p.x,p.y)
+ctx.fillStyle="#444"
+ctx.fillText(text,p.x,p.y)
+
+ctx.restore()
+
+})
+
+}
+}
+
+function generateChart(){
+
+let rows=document.querySelectorAll("#dataTable tbody tr")
+let headerCells=document.querySelectorAll("#headerRow th")
+
+let labels=[]
+let mins=[]
+let maxs=[]
+
+rows.forEach(row=>{
+labels.push(row.cells[0].querySelector("input").value)
+mins.push(Number(row.cells[1].querySelector("input").value)||0)
+maxs.push(Number(row.cells[2].querySelector("input").value)||1)
+})
+
+let datasets=[]
+
+for(let i=3;i<headerCells.length;i++){
+
+let name=headerCells[i].querySelector("input[type=text],input:not([type])")?.value
+let color=headerCells[i].querySelector("input[type=color]").value
+
+let values=[]
+
+rows.forEach((row,r)=>{
+
+let val=Number(row.cells[i].querySelector("input").value)||0
+let range=maxs[r]-mins[r]
+let norm=range===0?0:(val-mins[r])/range
+
+values.push(norm)
+
+})
+
+datasets.push({
+label:name,
+data:values,
+backgroundColor:color+"55",
+borderColor:color,
+fill:true,
+pointRadius:4
+})
+
+}
+
+let ctx=document.getElementById("radarChart")
+
+if(chart)chart.destroy()
+
+let title=document.getElementById("chartTitle").value
+
+chart=new Chart(ctx,{
+type:'radar',
+data:{labels:labels,datasets:datasets},
+options:{
+responsive:true,
+scales:{
+r:{
+min:0,
+max:1,
+angleLines:{color:"#bbb"},
+grid:{color:"#e0e0e0"},
+ticks:{display:false},
+pointLabels:{font:{size:14,weight:"bold"}}
+}
+},
+plugins:{
+title:{
+display:title!=="",
+text:title,
+font:{size:18}
+}
+}
+},
+plugins:[perAxisScalePlugin,valueLabelPlugin]
+})
+
+renderAxisLegend(labels,mins,maxs)
+
+}
+
+function renderAxisLegend(labels,mins,maxs){
+
+let box=document.getElementById("axisLegend")
+box.innerHTML=""
+
+labels.forEach((label,i)=>{
+
+let div=document.createElement("div")
+div.className="axisItem"
+div.innerHTML=`<b>${label}</b><br>Min: ${mins[i]} | Max: ${maxs[i]}`
+box.appendChild(div)
+
+})
+
+}
+
+function exportPNG(){
+html2canvas(document.getElementById("chartBox")).then(canvas=>{
+let link=document.createElement("a")
+link.download="radar.png"
+link.href=canvas.toDataURL()
+link.click()
+})
+}
+
+function exportPDF(){
+
+html2canvas(document.getElementById("chartBox"),{
+scale:3
+}).then(canvas=>{
+
+const {jsPDF}=window.jspdf
+
+let img=canvas.toDataURL("image/png")
+
+let pdf=new jsPDF({
+orientation:"landscape",
+unit:"mm",
+format:"a4"
+})
+
+let pageWidth = pdf.internal.pageSize.getWidth()
+let pageHeight = pdf.internal.pageSize.getHeight()
+
+let imgWidth = canvas.width
+let imgHeight = canvas.height
+
+let ratio = Math.min(pageWidth/imgWidth, pageHeight/imgHeight)
+
+let newWidth = imgWidth * ratio
+let newHeight = imgHeight * ratio
+
+let x = (pageWidth - newWidth) / 2
+let y = (pageHeight - newHeight) / 2
+
+pdf.addImage(img,"PNG",x,y,newWidth,newHeight)
+
+pdf.save("radar_chart.pdf")
+
+})
+
+}
+
+</script>
+
+</body>
+</html>
+
